@@ -136,7 +136,7 @@ class AcclaroTranslationService implements TranslationServiceInterface
                 return;
             }
 
-            $fileInfoResponse = $this->apiClient->getFileInfo($order->serviceOrderId);
+            $fileInfoResponse = $this->apiClient->getFileInfo($order->serviceOrderId, Constants::ACCLARO_TARGET_FILE_TYPE);
 
             if (!is_array($fileInfoResponse)) {
                 $error = sprintf('Invalid file Info from acclaro. FileId: %s', $file->id);
@@ -144,28 +144,15 @@ class AcclaroTranslationService implements TranslationServiceInterface
                 return;
             }
 
-            // Response can have multiple arrays of same source file id so check based on target locale
-            $targetSite = Craft::$app->getSites()->getSiteById($file->targetSite);
-            $targetLangCode = Translations::$plugin->siteRepository->normalizeLanguage($targetSite->language);
-
             // find the matching file
             foreach ($fileInfoResponse as $fileInfo) {
-                // Below encode decode will make sure we get data as object instead of array
-                $targetLangData = json_decode(json_encode($fileInfo->targetlang));
-                if ($fileInfo->fileid == $file->serviceFileId && $targetLangCode == $targetLangData->code) break;
+                // This check is because of plunet prepending wrings target locales to filenames, resulting in sync failure 
+                if (str_ends_with(strtolower($fileInfo->filename), strtolower($file->getFileName()))) break;
 
                 $fileInfo = null;
             }
 
-            /** @var object $fileInfo */
-            if (empty($fileInfo->targetfile)) {
-                if ($fileInfo->filetype == Constants::ACCLARO_SOURCE_FILE_TYPE) {
-                    Translations::$plugin->logHelper->log('[' . __METHOD__ . '] target file missing for fileId: ' . $file->id , Constants::LOG_LEVEL_ERROR);
-                }
-                return;
-            }
-
-            $targetFileId = $fileInfo->targetfile;
+            $targetFileId = $fileInfo->fileid;
 
             $fileStatusResponse = $this->apiClient->getFileStatus($order->serviceOrderId, $targetFileId);
 
@@ -299,23 +286,10 @@ class AcclaroTranslationService implements TranslationServiceInterface
         $client = $this->apiClient;
 
         if ($file) {
+            $sourceSite = Translations::$plugin->siteRepository->normalizeLanguage($file->getSourceSite()->language);
+            $targetSite = Translations::$plugin->siteRepository->normalizeLanguage($file->getTargetSite()->language);
 
-            $element = Translations::$plugin->elementRepository->getElementById($file->elementId, $file->sourceSite);
-
-            $sourceSite = Translations::$plugin->siteRepository->normalizeLanguage(Craft::$app->getSites()->getSiteById($file->sourceSite)->language);
-            $targetSite = Translations::$plugin->siteRepository->normalizeLanguage(Craft::$app->getSites()->getSiteById($file->targetSite)->language);
-
-            if ($element instanceof GlobalSet) {
-                $filename = ElementHelper::normalizeSlug($element->name).'-'.$targetSite.'.'.Constants::FILE_FORMAT_XML;
-            } else if ($element instanceof Asset) {
-                $assetFilename = $element->getFilename();
-                $fileInfo = pathinfo($element->getFilename());
-                $filename = $file->elementId . '-' . basename($assetFilename,'.'.$fileInfo['extension']) . '-' . $targetSite . '.' . Constants::FILE_FORMAT_XML;
-            } else {
-                $filename = $element->slug.'-'.$targetSite.'.'.Constants::FILE_FORMAT_XML;
-            }
-
-            $path = $tempPath .'/'. $file->elementId .'-'. $filename;
+            $path = $tempPath .'/'. $file->getFileName();
 
             $stream = fopen($path, 'w+');
 
@@ -353,8 +327,8 @@ class AcclaroTranslationService implements TranslationServiceInterface
         $client = $this->apiClient;
 
         if ($file) {
-            $sourceSite = Translations::$plugin->siteRepository->normalizeLanguage(Craft::$app->getSites()->getSiteById($file->sourceSite)->language);
-            $targetSite = Translations::$plugin->siteRepository->normalizeLanguage(Craft::$app->getSites()->getSiteById($file->targetSite)->language);
+            $sourceSite = Translations::$plugin->siteRepository->normalizeLanguage($file->getSourceSite()->language);
+            $targetSite = Translations::$plugin->siteRepository->normalizeLanguage($file->getTargetSite()->language);
 
             $tmFile = $file->getTmMisalignmentFile($format);
             $path = $tempPath .'-'. $tmFile['fileName'];

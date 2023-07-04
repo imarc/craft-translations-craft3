@@ -488,13 +488,18 @@ class AcclaroApiClient
      * Get file info
      *
      * @param int|string $orderId
+     * @param string $filetype Possible file type are: `source`, `target` or `null`
      * @return void|object
      */
-    public function getFileInfo($orderId)
+    public function getFileInfo($orderId, $filetype = null)
     {
-        return $this->get(Constants::ACCLARO_API_GET_ORDER_FILES_INFO, array(
+        $params = [
             'orderid'   => $orderId
-        ));
+        ];
+        if ($filetype) {
+            $params['filetype'] = $filetype;
+        }
+        return $this->get(Constants::ACCLARO_API_GET_ORDER_FILES_INFO, $params);
     }
 
     /**

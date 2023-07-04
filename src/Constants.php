@@ -105,6 +105,7 @@ class Constants
 
     const ORDER_TAG_GROUP_HANDLE    = "craftTranslations";
     const ACCLARO_SOURCE_FILE_TYPE  = 'source';
+    const ACCLARO_TARGET_FILE_TYPE  = 'target';
 
     // Acclaro Order Comments
     const ACCLARO_FILE_NEW      = 'NEW FILE';

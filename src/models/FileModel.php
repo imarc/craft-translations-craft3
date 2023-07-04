@@ -12,6 +12,7 @@ namespace acclaro\translations\models;
 
 use Craft;
 use craft\base\Model;
+use craft\models\Site;
 use yii\validators\NumberValidator;
 use acclaro\translations\Constants;
 use acclaro\translations\Translations;
@@ -136,6 +137,47 @@ class FileModel extends Model
         return $this->_service->getDraft($this);
     }
 
+    /**
+     * Returns site object for source site
+     */
+    public function getSourceSite(): ?Site
+    {
+        return Craft::$app->getSites()->getSiteById($this->sourceSite) ?? null;
+    }
+
+    /**
+     * Returns site object for target site
+     */
+    public function getTargetSite(): ?Site
+    {
+        return Craft::$app->getSites()->getSiteById($this->targetSite) ?? null;
+    }
+
+    /**
+     * Return filename to be used for acclaro/export-import source files
+     */
+    public function getFileName($extension = Constants::FILE_FORMAT_XML): string
+    {
+        $filename = '';
+
+        $element = $this->getElement(false, true);
+
+        $targetSite = Translations::$plugin->siteRepository->normalizeLanguage($this->getTargetSite()->language);
+
+        if ($element instanceof GlobalSet) {
+            $filename = sprintf('%s-%s-%s.%s', $this->elementId, ElementHelper::normalizeSlug($element->name), $targetSite, $extension);
+        } else if ($element instanceof Asset) {
+            $assetFilename = $element->getFilename();
+            $fileInfo = pathinfo($element->getFilename());
+            $assetFilename = basename($assetFilename, '.' . $fileInfo['extension']);
+            $filename = sprintf('%s-%s-%s.%s', $this->elementId, $assetFilename, $targetSite, $extension);
+        } else {
+            $filename = sprintf('%s-%s-%s.%s', $this->elementId, $element->slug, $targetSite, $extension);
+        }
+
+        return $filename;
+    }
+
     public function isNew()
     {
         return $this->status === Constants::FILE_STATUS_NEW;
@@ -253,11 +295,11 @@ class FileModel extends Model
 		return $hasDiff;
 	}
 
-    public function getElement($canonical = true)
+    public function getElement($canonical = true, $getSource = false)
 	{
         $element = Translations::$plugin->elementRepository->getElementById($this->elementId, $this->targetSite);
 
-		if (! $element) {
+		if (! $element || $getSource) {
             $element = Translations::$plugin->elementRepository->getElementById($this->elementId, $this->sourceSite);
 		}
 
@@ -310,7 +352,7 @@ class FileModel extends Model
         $targetSite = $this->targetSite;
         $source = $this->source;
 
-        $targetElement = Translations::$plugin->elementRepository->getElementById($this->elementId, $targetSite);
+        $targetElement = $this->getElement(false);
 
         if ($this->isComplete()) {
             $draft = $this->_service->getDraft($this);
@@ -327,7 +369,7 @@ class FileModel extends Model
             $entrySlug= $element->slug;
         }
 
-        $targetLang = Translations::$plugin->siteRepository->normalizeLanguage(Craft::$app->getSites()->getSiteById($targetSite)->language);
+        $targetLang = Translations::$plugin->siteRepository->normalizeLanguage($this->getTargetSite()->language);
 
         $filename = sprintf('%s-%s_%s_%s_TM.%s',$this->elementId, $entrySlug, $targetLang, date("Ymd\THi"), $format);
         
